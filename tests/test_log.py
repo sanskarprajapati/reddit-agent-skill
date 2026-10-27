@@ -28,6 +28,10 @@ class Entry(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "url"):
             log.entry(url="https://x.com/a", sub="espresso", kind="comment", purpose="help", today=TODAY)
 
+    def test_date_at_most_a_week_back(self):
+        with self.assertRaisesRegex(ValueError, "7 days"):
+            log.entry(url=THREAD, sub="espresso", kind="comment", purpose="help", date="2026-10-01", today=TODAY)
+
     def test_date_not_in_future(self):
         with self.assertRaisesRegex(ValueError, "future"):
             log.entry(url=THREAD, sub="espresso", kind="comment", purpose="help", date="2026-10-28", today=TODAY)
@@ -38,7 +42,7 @@ class Counts(unittest.TestCase):
         mk = lambda d, kind="comment", purpose="help", status="posted": log.entry(
             url=THREAD, sub="espresso", kind=kind, purpose=purpose, status=status, date=d, today=TODAY)
         return [mk("2026-10-27"), mk("2026-10-27", kind="post"), mk("2026-10-27", status="skipped"),
-                mk("2026-10-26", purpose="promo"), mk("2026-09-01", purpose="promo")]
+                mk("2026-10-26", purpose="promo"), dict(mk("2026-10-26", purpose="promo"), date="2026-09-01")]
 
     def test_counts_on_day_ignore_skipped(self):
         self.assertEqual(log.counts_on(self.entries(), TODAY), {"comment": 1, "post": 1})

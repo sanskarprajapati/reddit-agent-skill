@@ -4,12 +4,14 @@ Cut down from validator-skill's store.py. No tool in this pack talks to Reddit:
 Claude reads pages in the user's browser and these helpers handle what it wrote down.
 """
 
+import contextlib
 import datetime
 import html
 import json
 import os
 import re
 import tempfile
+import time
 from urllib.parse import urlparse
 
 _TAG_BREAK = re.compile(r"<\s*/?\s*(p|br|li|div)\b[^>]*>", re.I)
@@ -132,6 +134,36 @@ def write_text(path, text):
         if os.path.exists(tmp):
             os.remove(tmp)
         raise
+
+
+@contextlib.contextmanager
+def locked(path, wait=10.0, stale=120.0):
+    """One writer at a time for path: a lock file made with O_EXCL. A lock older than
+    `stale` seconds is left over from a crash and is cleared."""
+    lock = path + ".lock"
+    os.makedirs(os.path.dirname(os.path.abspath(lock)), exist_ok=True)
+    deadline = time.monotonic() + wait
+    while True:
+        try:
+            os.close(os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
+            break
+        except FileExistsError:
+            try:
+                if time.time() - os.path.getmtime(lock) > stale:
+                    os.remove(lock)
+                    continue
+            except OSError:
+                continue
+            if time.monotonic() > deadline:
+                raise ValueError("%s is busy: another step is changing it. Try again in a moment" % path)
+            time.sleep(0.05)
+    try:
+        yield
+    finally:
+        try:
+            os.remove(lock)
+        except OSError:
+            pass
 
 
 def load_jsonl(path):

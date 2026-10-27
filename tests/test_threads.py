@@ -69,6 +69,12 @@ class Rank(unittest.TestCase):
         self.assertIn("already", reasons["t3_g"])
         self.assertIn("off topic", reasons["t3_h"])
 
+    def test_items_without_post_id_are_ignored(self):
+        p = post("a", "grinder?")
+        p["id"] = None
+        out = threads.rank([listing([p])], PROFILE, {"espresso": "ok"}, [], [], NOW)
+        self.assertEqual(out["ranked"], [])
+
     def test_rules_state_attached(self):
         caps = [listing([post("a", "grinder?", sub="pourover")], source="home")]
         out = threads.rank(caps, PROFILE, {}, [], [], NOW)

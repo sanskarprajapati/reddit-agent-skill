@@ -121,7 +121,7 @@ def rank(caps, profile, verdicts, log, drafts, now, top=15):
         newest = max(newest, when) if newest and when else (when or newest)
         items = cap.get("items", []) if cap["kind"] == "listing" else [cap["post"]] if cap["kind"] == "thread" else []
         for item in items:
-            if not item.get("id", "").startswith("t3_"):
+            if not (item.get("id") or "").startswith("t3_"):
                 continue
             posts[item["id"]] = dict(posts.get(item["id"], {}), **{k: v for k, v in item.items() if v is not None})
             source = cap.get("source", "thread")

@@ -46,8 +46,9 @@ Run `plan.py phase` and explain it in a few lines:
 | building | days 7 to 27 | 5 comments, 1 post | links to other people's sources only, no product |
 | established | day 28 on | 8 comments, 2 posts | product only where the rules allow, at most 1 in 10 |
 
-Warm-up days are the account's age while it is young. An old account with under
-100 karma warms up from its first logged post. Negative karma holds it at new.
+Warm-up days are the account's age. An account 90 days old or more with under
+100 karma warms up from its first post logged in the last 60 days. Negative
+karma holds it at new. The log only takes dates up to 7 days back.
 The user can lower any cap in `profile.json`, never raise one. The hard ceiling
 is 10 drafts a day.
 

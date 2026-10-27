@@ -34,6 +34,7 @@ import store  # noqa: E402
 
 DEFAULT_DIR = "reddit"
 OPEN = ("drafted", "handed")
+MARKER = ".handoff"  # read by guard.py while a draft is in the reply box
 SLOTS_FROM, SLOT_MINUTES, LAST_SLOT = 12 * 60, 90, 22 * 60
 _WHEN = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 
@@ -70,8 +71,11 @@ def _vet(folder, sub, kind, url, text, purpose, today, title=None, flair=None):
         raise ValueError("a comment needs the thread link it answers, not %s" % url)
     if not store.is_reddit_url(url):
         raise ValueError("url must be a reddit.com link")
-    if not re.match(r"^/r/%s(/|$)" % re.escape(sub), re.sub(r"^https://[^/]+", "", url), re.I):
+    path = re.sub(r"^https://[^/]+", "", url.strip()).split("?")[0]
+    if not re.match(r"^/r/%s(/|$)" % re.escape(sub), path, re.I):
         raise ValueError("the link is not in r/%s" % sub)
+    if kind == "post" and not re.match(r"^/r/[^/]+/?(submit/?)?$", path, re.I):
+        raise ValueError("a post needs the sub's page or its /submit page, not a thread")
     profile, _, log, _ = plan.load(folder, today)
     result = removal.run(folder, text, sub, kind, title, flair, today)
     if result["risk"] == "blocked":
@@ -100,50 +104,67 @@ def new_draft(folder, sub, kind, url, file, purpose, today, title=None, flair=No
         raise ValueError("kind must be comment or post")
     if when and not _WHEN.match(when):
         raise ValueError("when must be a time like 18:30")
-    profile, _, log, drafts = plan.load(folder, today)
-    if plan.left_today(profile, log, drafts, today)[kind] < 1:
-        raise ValueError("today's cap for %ss is used up" % kind)
-    result = _vet(folder, sub, kind, url, _read_text(file), purpose, today, title, flair)
-    draft = {"id": "D%04d" % (len(drafts) + 1), "date": today.isoformat(), "sub": sub, "kind": kind,
-             "url": url.strip(), "file": file, "purpose": purpose, "status": "drafted", "risk": result["risk"],
-             "title": title or "", "flair": flair or "", "when": when, "title_hint": str(title_hint)[:300]}
-    _save(folder, drafts + [draft])
+    with store.locked(_path(folder)):
+        profile, _, log, drafts = plan.load(folder, today)
+        if plan.left_today(profile, log, drafts, today)[kind] < 1:
+            raise ValueError("today's cap for %ss is used up" % kind)
+        result = _vet(folder, sub, kind, url, _read_text(file), purpose, today, title, flair)
+        draft = {"id": "D%04d" % (len(drafts) + 1), "date": today.isoformat(), "sub": sub, "kind": kind,
+                 "url": url.strip(), "file": file, "purpose": purpose, "status": "drafted", "risk": result["risk"],
+                 "title": title or "", "flair": flair or "", "when": when, "title_hint": str(title_hint)[:300],
+                 "handed": False}
+        _save(folder, drafts + [draft])
     return draft
 
 
+def _marker(folder):
+    return os.path.join(folder, MARKER)
+
+
 def gate(folder, draft_id, today):
-    """Yes to a handoff, with what to type, or a ValueError saying why not. Marks the draft handed."""
-    drafts = read(folder)
-    draft = _find(drafts, draft_id)
-    if draft["status"] not in OPEN:
-        raise ValueError("%s is %s already" % (draft_id, draft["status"]))
-    busy = [d["id"] for d in drafts if d["status"] == "handed" and d["id"] != draft_id]
-    if busy:
-        raise ValueError("finish %s first: say done or skip" % busy[0])
-    if draft["date"] != today.isoformat():
+    """Yes to a handoff, with what to type, or a ValueError saying why not. Marks the draft handed
+    and leaves a marker the optional browser guard reads."""
+    with store.locked(_path(folder)):
+        drafts = read(folder)
+        draft = _find(drafts, draft_id)
+        if draft["status"] not in OPEN:
+            raise ValueError("%s is %s already" % (draft_id, draft["status"]))
+        busy = [d["id"] for d in drafts if d["status"] == "handed" and d["id"] != draft_id]
+        if busy:
+            raise ValueError("finish %s first: say done or skip" % busy[0])
         profile, _, log, _ = plan.load(folder, today)
-        if plan.left_today(profile, log, drafts, today)[draft["kind"]] < 1:
-            raise ValueError("%s is from %s and today's cap is used up" % (draft_id, draft["date"]))
-        draft["date"] = today.isoformat()
-    text = _read_text(draft["file"])
-    _vet(folder, draft["sub"], draft["kind"], draft["url"], text, draft["purpose"], today, draft["title"] or None,
-         draft["flair"] or None)
-    draft["status"] = "handed"
-    _save(folder, drafts)
-    return {"id": draft_id, "url": draft["url"], "kind": draft["kind"], "text": text, "title": draft["title"],
+        others = [d for d in drafts if d["id"] != draft_id]
+        kind = draft["kind"]
+        if plan.used_today(log, others, today)[kind] >= plan.caps(profile, log, today)[kind]:
+            raise ValueError("today's cap for %ss is used up, so %s waits for another day" % (kind, draft_id))
+        text = _read_text(draft["file"])
+        _vet(folder, draft["sub"], kind, draft["url"], text, draft["purpose"], today, draft["title"] or None,
+             draft["flair"] or None)
+        draft.update(status="handed", handed=True, date=today.isoformat())
+        _save(folder, drafts)
+        mark = store.read_json(_marker(folder))
+        if not (mark and mark.get("id") == draft_id):  # a second gate must not undo "typed"
+            store.write_json(_marker(folder), {"id": draft_id, "url": draft["url"], "typed": False})
+    return {"id": draft_id, "url": draft["url"], "kind": kind, "text": text, "title": draft["title"],
             "flair": draft["flair"]}
 
 
 def _close(folder, draft_id, today, status, url=None):
-    drafts = read(folder)
-    draft = _find(drafts, draft_id)
-    if draft["status"] not in OPEN:
-        raise ValueError("%s is %s already" % (draft_id, draft["status"]))
-    entry = post_log.entry(url or draft["url"], draft["sub"], draft["kind"], draft["purpose"], status,
-                           today=today, draft=draft_id)
-    draft["status"] = status
-    post_log.add(folder, entry)
-    _save(folder, drafts)
+    with store.locked(_path(folder)):
+        drafts = read(folder)
+        draft = _find(drafts, draft_id)
+        if draft["status"] not in OPEN:
+            raise ValueError("%s is %s already" % (draft_id, draft["status"]))
+        entry = post_log.entry(url or draft["url"], draft["sub"], draft["kind"], draft["purpose"], status,
+                               today=today, draft=draft_id)
+        draft["status"] = status
+        if status == "posted":
+            draft["date"] = today.isoformat()  # it counts on the day it went up
+        post_log.add(folder, entry)
+        _save(folder, drafts)
+        mark = store.read_json(_marker(folder))
+        if mark and mark.get("id") == draft_id:
+            os.remove(_marker(folder))
     return draft
 
 
@@ -199,6 +220,9 @@ def _fold(line):
 
 
 def ics(drafts, day, now=None):
+    """A calendar file with one reminder per draft queued for day, or None when nothing is queued."""
+    if not _slots(drafts, day):
+        return None
     now = now or datetime.datetime.now(datetime.timezone.utc)
     lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//reddit-agent-skill//queue//EN", "CALSCALE:GREGORIAN"]
     for d, minute in _slots(drafts, day):
@@ -250,8 +274,12 @@ def _main(argv=None):
         else:
             drafts = read(args.dir)
             store.write_text(os.path.join(args.dir, "queue.md"), queue_md(drafts, today))
-            store.write_text(os.path.join(args.dir, "queue.ics"), ics(drafts, today))
-            print("wrote queue.md and queue.ics in %s" % args.dir)
+            calendar, path = ics(drafts, today), os.path.join(args.dir, "queue.ics")
+            if calendar:
+                store.write_text(path, calendar)
+            elif os.path.exists(path):
+                os.remove(path)
+            print("wrote queue.md%s in %s" % (" and queue.ics" if calendar else "", args.dir))
     except (ValueError, OSError) as err:
         print("error: %s" % err, file=sys.stderr)
         return 1

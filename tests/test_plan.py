@@ -30,6 +30,14 @@ class Phase(unittest.TestCase):
         log = [logged((TODAY - datetime.timedelta(days=12)).isoformat())]
         self.assertEqual(plan.phase(prof(age_days=900, karma=3), log, TODAY)["name"], "building")
 
+    def test_backdated_log_does_not_skip_warm_up(self):
+        log = [logged("2019-01-01")]
+        self.assertEqual(plan.phase(prof(age_days=900, karma=3), log, TODAY)["name"], "new")
+
+    def test_no_drop_back_at_day_28(self):
+        self.assertEqual(plan.phase(prof(age_days=27, karma=3), [], TODAY)["name"], "building")
+        self.assertNotEqual(plan.phase(prof(age_days=28, karma=3), [], TODAY)["name"], "new")
+
     def test_young_account_with_karma_still_warms_up(self):
         self.assertEqual(plan.phase(prof(age_days=2, karma=5000), [], TODAY)["name"], "new")
 

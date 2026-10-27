@@ -8,11 +8,11 @@
 Phases, by warm-up days:
   new          days 0 to 6    3 comments a day, no posts, no links, no product
   building     days 7 to 27   5 comments and 1 post a day, links to other people's sources only
-  established  day 28 on      up to 10 a day, product only where the rules allow, at most 1 in 10
+  established  day 28 on      8 comments and 2 posts a day, product only where the rules allow, at most 1 in 10
 
-Warm-up days are the account's age while it is under four weeks old. An older
-account with under 100 karma warms up from its first logged post, as a quiet
-account is treated like a new one. Negative karma holds the phase at new.
+Warm-up days are the account's age. An account 90 days old or more with under 100
+karma is a quiet account and warms up from its first post logged in the last 60
+days, as if it were new. Negative karma holds the phase at new.
 """
 
 import argparse
@@ -32,6 +32,8 @@ DEFAULT_DIR = "reddit"
 DRAFTS = "drafts.jsonl"
 HARD_CEILING = user_profile.HARD_CEILING
 QUIET_KARMA = 100
+QUIET_AGE = 90  # days: younger accounts warm up by age alone, so the phase never steps back
+LOG_WINDOW = 60  # days of log a quiet account's warm-up can start from
 PROMO_SHARE = 0.1
 PHASES = (
     ("new", 0, {"comments": 3, "posts": 0, "links": "none", "product": False}),
@@ -45,8 +47,10 @@ def _created(profile):
     return store.read_date(account.get("created"))
 
 
-def _first_post(log):
-    days = sorted(e["date"] for e in log if isinstance(e, dict) and e.get("status") == "posted" and e.get("date"))
+def _first_post(log, day):
+    since = (day - datetime.timedelta(days=LOG_WINDOW)).isoformat()
+    days = sorted(e["date"] for e in log if isinstance(e, dict) and e.get("status") == "posted"
+                  and since <= str(e.get("date") or "") <= day.isoformat())
     return store.read_date(days[0]) if days else None
 
 
@@ -58,12 +62,12 @@ def phase(profile, log, day):
     age = (day - created).days if created else account.get("age_days", 0)
     if karma < 0:
         warm, why = 0, "negative karma holds the account at new"
-    elif age < PHASES[2][1]:
+    elif age < QUIET_AGE:
         warm, why = age, "account is %d days old" % age
     elif karma >= QUIET_KARMA:
         warm, why = age, "account is %d days old with %d karma" % (age, karma)
     else:
-        start = _first_post(log) or day
+        start = _first_post(log, day) or day
         warm = max((day - start).days, 0)
         why = "quiet account (%d karma): warming up from the first logged post, %d days ago" % (karma, warm)
     name, rules = PHASES[0][0], PHASES[0][2]
@@ -85,15 +89,25 @@ def caps(profile, log, day):
     return {"comment": comment, "post": post}
 
 
+def counts_on(draft, day):
+    """Does this draft use one of day's slots? Yes if dated day and not skipped before it was typed,
+    and yes for a draft handed off on an earlier day that is still open."""
+    iso = day.isoformat()
+    if draft.get("status") == "handed" and str(draft.get("date", "")) < iso:
+        return True
+    return draft.get("date") == iso and (draft.get("status") != "skipped" or bool(draft.get("handed")))
+
+
 def used_today(log, drafts, day):
-    """Drafts made today (not skipped), plus posts logged by hand today that had no draft."""
+    """Today's drafts (see counts_on), plus posts logged by hand today that had no draft."""
     used = {"comment": 0, "post": 0}
     iso = day.isoformat()
     for d in drafts:
-        if d.get("date") == iso and d.get("status") != "skipped" and d.get("kind") in used:
+        if isinstance(d, dict) and d.get("kind") in used and counts_on(d, day):
             used[d["kind"]] += 1
     for e in log:
-        if e.get("date") == iso and e.get("status") == "posted" and not e.get("draft") and e.get("kind") in used:
+        if isinstance(e, dict) and e.get("date") == iso and e.get("status") == "posted" and not e.get("draft") \
+                and e.get("kind") in used:
             used[e["kind"]] += 1
     return used
 

@@ -153,6 +153,73 @@ class Handoff(Base):
             queue.done(self.dir, d["id"], TODAY, url="https://example.com")
 
 
+class CapAccounting(Base):
+    def test_gate_rechecks_cap_after_hand_posts(self):
+        d = self.new()
+        log = load("reddit-setup", "log")
+        for n in range(3):
+            log.add(self.dir, log.entry(url=THREAD, sub="espresso", kind="comment", purpose="help", today=TODAY))
+        with self.assertRaisesRegex(ValueError, "cap"):
+            queue.gate(self.dir, d["id"], TODAY)
+
+    def test_handed_from_yesterday_counts_today(self):
+        d = self.new()
+        queue.gate(self.dir, d["id"], TODAY)
+        later = TODAY + datetime.timedelta(days=1)
+        for n in range(2):
+            self.new(name="n%d.txt" % n, today=later)
+        with self.assertRaisesRegex(ValueError, "cap"):
+            self.new(name="n9.txt", today=later)
+        queue.done(self.dir, d["id"], later)
+        self.assertEqual(queue.read(self.dir)[0]["date"], later.isoformat())
+
+    def test_skip_after_typing_still_counts(self):
+        for n in range(3):
+            d = self.new(name="s%d.txt" % n)
+            queue.gate(self.dir, d["id"], TODAY)
+            queue.skip(self.dir, d["id"], TODAY)
+        with self.assertRaisesRegex(ValueError, "cap"):
+            self.new(name="s9.txt")
+
+    def test_skip_before_typing_frees_the_slot(self):
+        for n in range(3):
+            d = self.new(name="f%d.txt" % n)
+            queue.skip(self.dir, d["id"], TODAY)
+        self.new(name="f9.txt")
+
+    def test_post_needs_sub_page_not_thread(self):
+        self.profile(age_days=10, karma=50)
+        with self.assertRaisesRegex(ValueError, "post"):
+            self.new(HELP + " " + HELP, kind="post", url=THREAD, title="Sour shots")
+        self.new(HELP + " " + HELP, kind="post", url="https://www.reddit.com/r/espresso/submit", title="Sour shots",
+                 name="p.txt")
+
+    def test_handoff_marker(self):
+        d = self.new()
+        queue.gate(self.dir, d["id"], TODAY)
+        self.assertEqual(store.read_json(os.path.join(self.dir, ".handoff"))["id"], d["id"])
+        queue.done(self.dir, d["id"], TODAY)
+        self.assertFalse(os.path.exists(os.path.join(self.dir, ".handoff")))
+
+    def test_second_gate_keeps_typed(self):
+        d = self.new()
+        queue.gate(self.dir, d["id"], TODAY)
+        path = os.path.join(self.dir, ".handoff")
+        store.write_json(path, dict(store.read_json(path), typed=True))
+        queue.gate(self.dir, d["id"], TODAY)
+        self.assertTrue(store.read_json(path)["typed"])
+
+    def test_lock_refuses_while_busy(self):
+        path = os.path.join(self.dir, "drafts.jsonl")
+        with store.locked(path):
+            with self.assertRaisesRegex(ValueError, "busy"):
+                with store.locked(path, wait=0.1):
+                    pass
+
+    def test_empty_day_has_no_calendar_events(self):
+        self.assertIsNone(queue.ics([], TODAY))
+
+
 class Calendar(Base):
     def test_ics(self):
         d = self.new()

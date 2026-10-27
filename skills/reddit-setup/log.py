@@ -20,6 +20,7 @@ FILE = "log.jsonl"
 KINDS = ("comment", "post")
 PURPOSES = ("help", "promo")
 STATUSES = ("posted", "skipped")
+MAX_BACK = 7  # an old date could fake a warm-up that never happened
 
 
 def entry(url, sub, kind, purpose, status="posted", date=None, today=None, draft="", note=""):
@@ -43,6 +44,8 @@ def entry(url, sub, kind, purpose, status="posted", date=None, today=None, draft
         problems.append("date must be YYYY-MM-DD")
     elif day > today:
         problems.append("date is in the future")
+    elif (today - day).days > MAX_BACK:
+        problems.append("date can be at most %d days back: log posts as you go" % MAX_BACK)
     if problems:
         raise ValueError("log problems: " + " | ".join(problems))
     return {"date": day.isoformat(), "url": url.strip(), "sub": sub, "kind": kind, "purpose": purpose,

@@ -74,7 +74,9 @@ python3 "${CLAUDE_SKILL_DIR}/../reddit-plan/drafts.py" new --sub NAME --kind com
   --file reddit/drafts/FILE.txt --purpose help [--when 18:30] [--title-hint "thread title"]
 ```
 
-`--purpose promo` when it names or links the user's product. The tool refuses a
+For a post, use `--kind post`, the sub's submit page as the link
+(`https://www.reddit.com/r/<sub>/submit`) and `--title`; a thread link is refused
+for a post. `--purpose promo` when it names or links the user's product. The tool refuses a
 draft over today's cap, in a sub whose rules are not `ok`, at high risk, or
 outside the phase. Do not try to get around a refusal; tell the user what it said.
 
@@ -91,8 +93,10 @@ When the user says "open it" or similar, for one draft:
    a comment" box. For a reply to a comment: the Reply link under that comment,
    which only opens an empty editor. For a post: the sub's create-post form.
    If you cannot find it on the loaded page, stop and say so. Never guess.
-4. Click into the editor and type the text exactly as the gate printed it. For a
-   post, type the title and pick the flair the rules require.
+4. For a post, pick the flair the rules require first. Then click into the
+   editor and type the text (and a post's title) exactly as the gate printed
+   it. Typing is the last thing you do: if the user runs the browser guard, it
+   denies every click and Enter from the moment the draft is typed.
 5. Stop. Say: "It is in the box. Read it, change anything you like, and click
    Comment (or Post) yourself if you still want to. Tell me done or skip."
 
@@ -109,5 +113,6 @@ warning, run `capture.py halt` and stop.
 - "skip": `drafts.py skip ID`.
 
 One draft at a time: the gate refuses the next one until this one is done or
-skipped. Then offer the next draft, or `drafts.py today` for the rest of the
+skipped. A draft skipped after it was typed still counts against today's cap.
+If the user wants changes after it is typed, they edit it in the box themselves. Then offer the next draft, or `drafts.py today` for the rest of the
 day's queue.
