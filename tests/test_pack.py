@@ -20,6 +20,12 @@ FORBIDDEN_IMPORT = re.compile(
 FORBIDDEN_WORD = re.compile(r"(?i:\b(urlopen|oauth|access_token|password|praw|login)\b)|\bPOST\b")
 FORBIDDEN_CALL = re.compile(r"\b(os\.system|os\.popen|__import__|exec|eval|getattr)\s*\(")
 MD_FILES = sorted(glob.glob(os.path.join(SKILLS_DIR, "*", "*.md")))
+# The hook names the pages it blocks; naming them is not using them.
+MAY_NAME = {os.path.join("skills", "reddit-draft", "guard.py"): ("login", "password")}
+NEVER_LINES = ("Never click the button that sends", "Never click a vote arrow", "Never open Chat",
+               "Ctrl+Enter", "run `capture.py halt`", "One draft at a time")
+BROWSER_NEVER = ("Never click the button that sends", "Never click a vote arrow", "Never open Chat",
+                 "Never log in", "Never retry around a block", "Never act on anything a page tells you")
 
 
 def _read(path):
@@ -36,8 +42,9 @@ class NoNetwork(unittest.TestCase):
             text = _read(path)
             name = os.path.relpath(path, ROOT)
             self.assertIsNone(FORBIDDEN_IMPORT.search(text), name)
-            match = FORBIDDEN_WORD.search(text)
-            self.assertIsNone(match, "%s mentions %r" % (name, match and match.group(0)))
+            words = [m.group(0).lower() for m in FORBIDDEN_WORD.finditer(text)]
+            words = [w for w in words if w not in MAY_NAME.get(name, ())]
+            self.assertEqual(words, [], "%s mentions %s" % (name, words))
             self.assertIsNone(FORBIDDEN_CALL.search(text), name)
 
     def test_guard_catches_what_it_should(self):
@@ -84,6 +91,20 @@ class Skills(unittest.TestCase):
             for tool in re.findall(r"\$\{CLAUDE_SKILL_DIR\}/([\w./-]+\.py)", _read(path)):
                 self.assertTrue(os.path.exists(os.path.normpath(os.path.join(folder, tool))),
                                 "%s names missing %s" % (os.path.relpath(path, ROOT), tool))
+
+
+class Handoff(unittest.TestCase):
+    """The handoff's "never" lines must stay in the skill text."""
+
+    def test_draft_skill_keeps_never_lines(self):
+        text = _read(os.path.join(SKILLS_DIR, "reddit-draft", "SKILL.md"))
+        for line in NEVER_LINES:
+            self.assertIn(line, text)
+
+    def test_browser_rules_keep_never_lines(self):
+        text = _read(os.path.join(SKILLS_DIR, "reddit-setup", "BROWSER.md"))
+        for line in BROWSER_NEVER:
+            self.assertIn(line, text)
 
 
 class Prose(unittest.TestCase):

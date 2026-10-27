@@ -5,7 +5,7 @@ read their rules, find threads worth answering, and draft helpful replies in
 their own voice. Claude works in your own Chrome, where you are already logged
 in. It reads, searches and fills in reply boxes. You click Post.
 
-Status: approved direction, building.
+Status: phases 1 to 5 built; the real run and the README example are next.
 
 ## The hard rules
 
@@ -91,7 +91,7 @@ the same way. It does not vote, join or hide posts for you.
   account; retry if Reddit shows a captcha, a rate limit or a warning.
 - **One at a time.** It fills one draft, waits for you to say "done" or "skip",
   logs that to `reddit/log.jsonl`, and only then opens the next.
-- **Gates before it opens anything** (`queue.py gate`): the sub is not on the
+- **Gates before it opens anything** (`drafts.py gate`): the sub is not on the
   skip list (or you confirmed an unclear rule), the draft passed `/reddit-check`
   at low or medium risk, and today's cap is not used up.
 - **Enforced how:** the steps are written into the skills, a test checks the
@@ -138,10 +138,12 @@ Stdlib only, Python 3.8+. None of them touch the network. Shared modules live in
 | `subs.py` | subs | Ranks subs from captures with fixed weights: size, weekly contributions, fit to your terms. |
 | `rules.py` | subs | Word rules that sort each rule into AI content, self-promo, links, minimums, flair. Quotes the rule word for word. Clear AI ban: skip. Unclear: needs your confirm. |
 | `plan.py` | plan | Phase, caps, what each phase allows, the seven-day table and the ratio check. |
-| `queue.py` | plan | Today's `queue.md` and `queue.ics`, and `gate` for the handoff. |
+| `drafts.py` | plan | The draft register (`drafts.jsonl`) that counts drafts against the cap, `gate` for the handoff, done and skip into the log, and today's `queue.md` and `queue.ics`. |
 | `threads.py` | threads | Scores threads: relevance, age, comment count, question shape, not locked or archived, not already answered well. |
 | `tells.py` | check | The AI tell list as data plus a detector. |
 | `check.py` | check | The removal-risk score: low, medium or high, with each reason and the rule it hit. |
+| `signals.py` | check | Finds product names, product links and self-promotion however they are spelled. |
+| `guard.py` | draft | The optional `PreToolUse` hook that denies sending, voting, messaging and keyboard submits in the browser. |
 | `stats.py` | stats | Your own posts and comments from profile captures, summed by sub and kind, with removals. |
 
 ## What is kept, and where
@@ -162,7 +164,7 @@ approve the finished pack.
 2. **Find.** `subs.py`, `rules.py` (rule sets in many wordings as fixtures) and
    `/reddit-subs`.
 3. **Write well.** `tells.py`, `check.py`, `/reddit-check`.
-4. **Engage.** `plan.py`, `queue.py`, `threads.py`, `/reddit-plan`,
+4. **Engage.** `plan.py`, `drafts.py`, `threads.py`, `/reddit-plan`,
    `/reddit-threads`, `/reddit-draft` with the handoff, the "never" line test and
    the optional hook.
 5. **Look back.** `stats.py` and `/reddit-stats`.
