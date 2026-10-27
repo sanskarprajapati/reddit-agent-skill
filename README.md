@@ -59,10 +59,11 @@ install), and the Claude in Chrome extension so Claude can read Reddit in your
 browser. Without the extension everything still works: you open the pages and
 paste what you see.
 
-### Optional: the browser guard
+### The browser guard (required for approved mode)
 
 A small hook that stops the browser actions this pack never takes, as a second
-line behind the skills' own rules. Add to `.claude/settings.json` in your project.
+line behind the skills' own rules. Optional in manual mode; in approved mode the
+pack will not send anything unless it is set up. Add to `.claude/settings.json` in your project.
 The path below is for the copy install; for a plugin install, point it at
 `skills/reddit-draft/guard.py` inside the plugin's folder under `~/.claude/plugins/`.
 
@@ -71,7 +72,7 @@ The path below is for the copy install; for a plugin install, point it at
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "mcp__claude-in-chrome__.*|mcp__playwright__.*",
+        "matcher": "mcp__claude-in-chrome__.*|mcp__playwright__.*|Bash",
         "hooks": [{"type": "command", "command": "python3 ~/.claude/skills/reddit-draft/guard.py"}]
       }
     ]
@@ -79,12 +80,13 @@ The path below is for the copy install; for a plugin install, point it at
 }
 ```
 
-It always denies page scripts, typing with submit on, clicks on a vote arrow,
+It always denies page scripts, typing with submit on, clicks on a vote, Save,
 Join, Follow, Award, Share, Report, Hide, Block or Message, and Reddit's messages,
-chat, mod mail, notifications, settings and login pages. Sending works through
-the handoff: once a draft is typed, an approved draft gets exactly one click or
-Ctrl+Enter, which is the send, and then everything locks; any other draft gets
-none, so you send it. That matters because a click given as a page reference or
+chat, mod mail, notifications, settings and login pages, and it makes Claude Code
+ask you before any `drafts.py approve`. Once a draft is typed, every click and
+Enter is denied, except one click on a button named Comment, Reply or Post (or
+one Ctrl+Enter), and only if posting is approved in your profile, the draft was
+approved today, and what was typed is exactly the approved text. That matters because a click given as a page reference or
 screen position carries no label the hook could read. In a project where it is set up, it applies to all
 browser use through Claude there, not only Reddit.
 
@@ -153,8 +155,9 @@ so no number comes from a model's memory.
 
 ## Safeguards
 
-- **Posting.** Only the text you approved, only after it is typed, only once,
-  and only in a sub whose rules allow it. No tool talks to Reddit itself, and a
+- **Posting.** In manual mode, nothing is sent by Claude. In approved mode, only
+  the text you approved today, only after it is typed, only once, only with the
+  guard set up, and only in a sub whose rules allow it. No tool talks to Reddit itself, and a
   test fails if a tool ever imports a network library or names a login.
 - **Rules.** No draft is registered for a sub whose rules are not read,
   are over 30 days old, or are unclear about AI and not confirmed by you. A ban

@@ -226,6 +226,8 @@ class Approved(Base):
         p = store.read_json(os.path.join(self.dir, "profile.json"))
         p["posting"] = "approved"
         store.write_json(os.path.join(self.dir, "profile.json"), p)
+        store.write_json(os.path.join(self.dir, ".claude", "settings.json"), {"hooks": {"PreToolUse": [
+            {"matcher": "mcp__.*|Bash", "hooks": [{"type": "command", "command": "python3 x/reddit-draft/guard.py"}]}]}})
 
     def test_manual_mode_never_submits(self):
         p = store.read_json(os.path.join(self.dir, "profile.json"))
@@ -263,6 +265,42 @@ class Approved(Base):
     def test_batch_approve(self):
         ids = [self.new(name="b%d.txt" % n)["id"] for n in range(2)]
         self.assertEqual(queue.approve(self.dir, ids, TODAY), 2)
+
+    def test_no_approval_after_typing(self):
+        d = self.new()
+        queue.gate(self.dir, d["id"], TODAY)
+        path = os.path.join(self.dir, ".handoff")
+        store.write_json(path, dict(store.read_json(path), typed=True))
+        with self.assertRaisesRegex(ValueError, "typed"):
+            queue.approve(self.dir, [d["id"]], TODAY)
+
+    def test_regate_never_raises_may_submit(self):
+        d = self.new()
+        queue.gate(self.dir, d["id"], TODAY)
+        p = os.path.join(self.dir, ".handoff")
+        store.write_json(p, dict(store.read_json(p), typed=False))
+        with self.assertRaisesRegex(ValueError, "skip"):
+            queue.approve(self.dir, [d["id"]], TODAY)
+
+    def test_marker_carries_date_and_hashes(self):
+        d = self.new()
+        queue.approve(self.dir, [d["id"]], TODAY)
+        queue.gate(self.dir, d["id"], TODAY)
+        mark = store.read_json(os.path.join(self.dir, ".handoff"))
+        self.assertEqual(mark["date"], TODAY.isoformat())
+        self.assertEqual(len(mark["body_sha"]), 64)
+
+    def test_no_guard_no_send(self):
+        os.remove(os.path.join(self.dir, ".claude", "settings.json"))
+        d = self.new()
+        queue.approve(self.dir, [d["id"]], TODAY)
+        out = queue.gate(self.dir, d["id"], TODAY)
+        self.assertFalse(out["may_submit"])
+        self.assertIn("guard", out["why_not"])
+
+    def test_queue_wording_per_mode(self):
+        d = self.new()
+        self.assertIn("approved", queue.queue_md(queue.read(self.dir), TODAY, mode="approved"))
 
     def test_closed_drafts_cannot_be_approved(self):
         d = self.new()

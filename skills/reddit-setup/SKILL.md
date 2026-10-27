@@ -73,7 +73,7 @@ at a time:
 - How drafts go out (`posting`): `manual` (the default: Claude types, they click
   Post) or `approved` (Claude clicks Post for drafts they approved word for word
   that day). Explain both in a line each and let them choose. There is no
-  unattended mode.
+  unattended mode. Approved mode needs the browser guard hook set up (README).
 - Whether they want caps lower than the warm-up defaults (`caps`). They can only
   go down, never above 10 a day.
 

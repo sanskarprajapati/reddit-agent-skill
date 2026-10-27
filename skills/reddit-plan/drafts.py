@@ -142,23 +142,59 @@ def gate(folder, draft_id, today):
         text = _read_text(draft["file"])
         _vet(folder, draft["sub"], kind, draft["url"], text, draft["purpose"], today, draft["title"] or None,
              draft["flair"] or None)
-        may_submit = profile.get("posting") == "approved" and draft.get("approval") == _fingerprint(draft, text, today)
+        may_submit, why_not = _may_submit(folder, profile, draft, text, today)
         draft.update(status="handed", handed=True, date=today.isoformat())
         _save(folder, drafts)
         mark = store.read_json(_marker(folder))
-        if not (mark and mark.get("id") == draft_id):  # a second gate must not undo "typed"
-            store.write_json(_marker(folder), {"id": draft_id, "url": draft["url"], "typed": False,
-                                               "may_submit": may_submit})
-        elif mark.get("may_submit") != may_submit:
-            store.write_json(_marker(folder), dict(mark, may_submit=may_submit and not mark.get("submitted")))
+        if not (mark and mark.get("id") == draft_id):
+            store.write_json(_marker(folder), {
+                "id": draft_id, "url": draft["url"], "date": today.isoformat(), "typed": False, "typed_sha": [],
+                "may_submit": may_submit, "body_sha": _sha(text),
+                "title_sha": _sha(draft["title"]) if draft.get("title") else ""})
+        else:  # a second gate can only take a send away, never give one
+            if mark.get("may_submit") and not may_submit:
+                store.write_json(_marker(folder), dict(mark, may_submit=False))
+            may_submit = bool(mark.get("may_submit")) and may_submit and not mark.get("submitted")
+            why_not = why_not or ("" if may_submit else "this handoff started without an approval")
     return {"id": draft_id, "url": draft["url"], "kind": kind, "text": text, "title": draft["title"],
-            "flair": draft["flair"], "may_submit": may_submit}
+            "flair": draft["flair"], "may_submit": may_submit, "why_not": why_not}
+
+
+def _sha(text):
+    return hashlib.sha256(str(text).strip().encode("utf-8")).hexdigest()
+
+
+def guard_installed(folder):
+    """Is guard.py set up as a hook where Claude Code will run it for this project?"""
+    project = os.path.dirname(os.path.abspath(folder))
+    places = [os.path.join(base, ".claude", name) for base in (folder, project)
+              for name in ("settings.json", "settings.local.json")]
+    places.append(os.path.join(os.path.expanduser("~"), ".claude", "settings.json"))
+    for path in places:
+        try:
+            with open(path, encoding="utf-8") as fh:
+                text = fh.read()
+        except OSError:
+            continue
+        if "PreToolUse" in text and "guard.py" in text:
+            return True
+    return False
+
+
+def _may_submit(folder, profile, draft, text, today):
+    if profile.get("posting") != "approved":
+        return False, "posting is manual: the user clicks Post"
+    if draft.get("approval") != _fingerprint(draft, text, today):
+        return False, "not approved as it reads now, today"
+    if not guard_installed(folder):
+        return False, "approved mode needs the browser guard set up (see the README)"
+    return True, ""
 
 
 def _fingerprint(draft, text, day):
     """What the user approved: this text, title and flair, for this thread, on this day."""
     parts = [draft["id"], draft["url"], draft.get("title", ""), draft.get("flair", ""), text, day.isoformat()]
-    return hashlib.sha256("\n\x00".join(parts).encode("utf-8")).hexdigest()
+    return hashlib.sha256(json.dumps(parts).encode("utf-8")).hexdigest()
 
 
 def approve(folder, draft_ids, today):
@@ -173,6 +209,9 @@ def approve(folder, draft_ids, today):
             draft = _find(drafts, draft_id)
             if draft["status"] not in OPEN:
                 raise ValueError("%s is %s already" % (draft_id, draft["status"]))
+            if draft["status"] == "handed":
+                raise ValueError("%s is already handed off and may be typed in the box. Approvals come before "
+                                 "the handoff: skip it and register it again" % draft_id)
             draft["approval"] = _fingerprint(draft, _read_text(draft["file"]), today)
         _save(folder, drafts)
     return len(draft_ids)
@@ -218,9 +257,10 @@ def _slots(drafts, day):
     return sorted(out, key=lambda pair: pair[1])
 
 
-def queue_md(drafts, day):
-    lines = ["# Today's queue, %s" % day.isoformat(), "",
-             "Times are rough. Post when you are there, one at a time. You click Post.", "",
+def queue_md(drafts, day, mode="manual"):
+    how = ("Claude posts the drafts you approved word for word; anything else waits for you." if mode == "approved"
+           else "Post when you are there, one at a time. You click Post.")
+    lines = ["# Today's queue, %s" % day.isoformat(), "", "Times are rough. " + how, "",
              "| time | draft | sub | kind | thread |", "| --- | --- | --- | --- | --- |"]
     for d, minute in _slots(drafts, day):
         lines.append("| %02d:%02d | %s | r/%s | %s | %s |" % (
@@ -260,7 +300,8 @@ def ics(drafts, day, now=None):
         lines += ["BEGIN:VEVENT", "UID:%s-%s@reddit-agent-skill" % (d["id"], day.isoformat()),
                   "DTSTAMP:%s" % now.strftime("%Y%m%dT%H%M%SZ"), "DTSTART:%s" % start, "DURATION:PT15M",
                   "SUMMARY:%s" % ics_escape("Reddit: %s %s in r/%s" % (what, d["id"], d["sub"])),
-                  "DESCRIPTION:%s" % ics_escape("Read the draft, edit it, and post it yourself if you still want "
+                  "DESCRIPTION:%s" % ics_escape("Read the draft and decide. Approved drafts are posted by Claude "
+                                                "when you say go; others you post yourself if you still want "
                                                 "to.\n%s\nDraft: %s" % (d["url"], d["file"])),
                   "END:VEVENT"]
     lines.append("END:VCALENDAR")
@@ -294,7 +335,13 @@ def _main(argv=None):
                           args.title or None, args.flair or None, args.when, args.title_hint)
             print("registered %s (%s risk)" % (d["id"], d["risk"]))
         elif args.cmd == "approve":
-            print("approved %d for posting today; any edit voids it" % approve(args.dir, args.ids, today))
+            count = approve(args.dir, args.ids, today)
+            for d in read(args.dir):
+                if d["id"] in args.ids:
+                    print("--- %s, r/%s, %s\n%s%s" % (d["id"], d["sub"], d["url"],
+                                                   ("Title: %s\n" % d["title"]) if d["title"] else "",
+                                                   _read_text(d["file"])))
+            print("approved %d for posting today, word for word as above; any edit voids it" % count)
         elif args.cmd == "gate":
             print(json.dumps(gate(args.dir, args.id, today), indent=2, ensure_ascii=False))
         elif args.cmd in ("done", "skip"):
@@ -305,7 +352,8 @@ def _main(argv=None):
                 print("%s %s %-8s r/%-20s %-7s %s" % (d["id"], d["date"], d["status"], d["sub"], d["kind"], d["file"]))
         else:
             drafts = read(args.dir)
-            store.write_text(os.path.join(args.dir, "queue.md"), queue_md(drafts, today))
+            mode = plan.load(args.dir, today)[0].get("posting", "manual")
+            store.write_text(os.path.join(args.dir, "queue.md"), queue_md(drafts, today, mode))
             calendar, path = ics(drafts, today), os.path.join(args.dir, "queue.ics")
             if calendar:
                 store.write_text(path, calendar)
