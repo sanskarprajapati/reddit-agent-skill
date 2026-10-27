@@ -1,0 +1,18 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "reddit-agent-skill",
+  "description": "The Reddit skill pack for Claude",
+  "owner": {
+    "name": "Sanskar Prajapati",
+    "url": "https://theaiadventurer.com"
+  },
+  "plugins": [
+    {
+      "name": "reddit-agent-skill",
+      "description": "Claude skills for Reddit: set up your profile and voice, find subreddits and read their rules, plan your warm-up and week, find threads worth answering, draft and check replies, and see how your posts did. It fills in the reply box. You click Post.",
+      "source": "./",
+      "category": "productivity",
+      "homepage": "https://github.com/sanskarprajapati/reddit-agent-skill"
+    }
+  ]
+}

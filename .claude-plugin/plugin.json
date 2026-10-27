@@ -1,0 +1,20 @@
+{
+  "name": "reddit-agent-skill",
+  "description": "Free Claude skills for Reddit: find the right subreddits and read their rules, find threads worth answering, and draft helpful replies in your own voice. Claude works in your own Chrome and fills in the reply box. You click Post. Free, MIT.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Sanskar Prajapati",
+    "url": "https://theaiadventurer.com"
+  },
+  "homepage": "https://github.com/sanskarprajapati/reddit-agent-skill",
+  "repository": "https://github.com/sanskarprajapati/reddit-agent-skill",
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "claude-skills",
+    "reddit",
+    "community",
+    "marketing",
+    "writing"
+  ]
+}

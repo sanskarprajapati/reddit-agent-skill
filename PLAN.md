@@ -71,8 +71,9 @@ posts, comments) with their numbers as shown ("1.2k members", "5 hr. ago").
 date, cleans the text and stores it. Every later tool reads only checked
 captures, so every count and score traces back to a page and a time.
 
-**Page budget.** 30 page loads per run by default, counted from the captures.
-That keeps a run light on Reddit and quick for you. If Reddit shows a captcha,
+**Page budget.** 30 page loads per run by default (60 at most), and no more than
+120 in any 24 hours, counted from the captures. That keeps a run light on Reddit
+and quick for you. If Reddit shows a captcha,
 a "you are doing that too much" notice or any warning, Claude stops the run and
 tells you. It never retries around it.
 
@@ -131,7 +132,8 @@ Stdlib only, Python 3.8+. None of them touch the network. Shared modules live in
 | `store.py` | setup | Cut down from validator-skill: `clean_text`, stable IDs, and `verbatim()` for word-for-word quotes. |
 | `capture.py` | setup | Checks and stores capture files, parses counts and ages, counts the page budget. |
 | `profile.py` | setup | Checks `profile.json`: required fields, caps within the ceiling, one account. |
-| `voice.py` | setup | Measures your sample comments and checks every quirk in `voice.md` appears word for word in a sample. |
+| `voice.py` | setup | Keeps your sample comments in `samples.jsonl` (apart from `voice.md`, so their text can never pose as a section), measures them, and checks every quirk in `voice.md` appears word for word in a sample. |
+| `parsing.py` | setup | Turns "1.2k", "5 hr. ago" and "Jan 25, 2008" into numbers and dates. |
 | `log.py` | setup | `reddit/log.jsonl`: what you posted, with link, sub and kind (help or promo). Feeds caps, the ratio and stats. |
 | `subs.py` | subs | Ranks subs from captures with fixed weights: size, weekly contributions, fit to your terms. |
 | `rules.py` | subs | Word rules that sort each rule into AI content, self-promo, links, minimums, flair. Quotes the rule word for word. Clear AI ban: skip. Unclear: needs your confirm. |
@@ -145,7 +147,7 @@ Stdlib only, Python 3.8+. None of them touch the network. Shared modules live in
 ## What is kept, and where
 
 All state in a `reddit/` folder in your project, added to `.gitignore`:
-`profile.json`, `voice.md`, `captures/`, `subs.json`, `rules/<sub>.json`,
+`profile.json`, `voice.md`, `samples.jsonl`, `captures/`, `subs.json`, `rules/<sub>.json`,
 `threads.jsonl`, `drafts/`, `log.jsonl`, `queue.md`, `queue.ics` and the reports.
 
 ## Build phases
