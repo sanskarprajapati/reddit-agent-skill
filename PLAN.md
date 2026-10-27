@@ -43,10 +43,10 @@ Seven, one per real task.
 | `/reddit-setup` | Intake and voice | Who you are on Reddit, what you care about, your product (optional), account age and karma. Builds `reddit/voice.md` from your own writing: casing, sentence length, slang, how you open a reply, typos you really make, words you never use, what you know first-hand. You paste at least five of your own comments, or it reads them from your profile page. |
 | `/reddit-subs` | Subs and their rules | Searches Reddit for communities on a topic or product, opens each one, and records members, weekly visitors and weekly contributions. Reads each one's rules and sorts them: AI content, self-promotion, links, account minimums, flair, format. Subs that ban AI content go on the skip list. Also works on one named sub. |
 | `/reddit-plan` | Warm-up, week and queue | Your phase from account age, karma and your log, with a cap per day and what each phase allows. Then the next seven days: which subs, comments or a post, how many, and the help-to-promo ratio (at most 1 in 10). Then today's queue: these threads, these drafts, a rough time for each, and an optional calendar file for reminders. |
-| `/reddit-threads` | Thread Finder | Reads your home feed, each OK sub's New tab and Reddit search for your terms. Finds threads where you could help: relevant, open, recent, unanswered or under-answered. Opens the best few to see whether they are already answered well. Scored by fixed rules. |
+| `/reddit-threads` | Thread finder | Reads your home feed, each OK sub's New tab and Reddit search for your terms. Finds threads where you could help: relevant, open, recent, unanswered or under-answered. Opens the best few to see whether they are already answered well. Scored by fixed rules. |
 | `/reddit-draft` | Drafter and handoff | A helpful comment or post for a picked thread or sub, in your voice, inside that sub's rules, your phase and today's cap. Every draft goes through the removal check before you see it. Saved to `reddit/drafts/`. When you say so, opens the thread in Chrome and fills the reply box, then stops for you to edit and post. |
 | `/reddit-check` | Removal check and cleanup | "Would this get removed?" for any draft, yours or the drafter's: rule fit, self-promo signals, links, tone, length, AI tells. Fixed weights, every point with a reason. Then offers a cleaned version toward your voice file and re-checks it. |
-| `/reddit-stats` | How It Went | Reads your own profile's posts and comments: score, replies, which subs and which kind did well, and any Reddit marks as removed (you see that label on your own posts when logged in). Feeds back into `/reddit-plan`. |
+| `/reddit-stats` | How it went | Reads your own profile's posts and comments: score, replies, which subs and which kind did well, and any Reddit marks as removed (you see that label on your own posts when logged in). Then suggests changes for `/reddit-plan`. |
 
 Flow: `setup -> subs -> plan -> threads -> draft (check runs inside) -> handoff -> you post -> log -> stats -> plan`
 
@@ -134,7 +134,7 @@ Stdlib only, Python 3.8+. None of them touch the network. Shared modules live in
 | `profile.py` | setup | Checks `profile.json`: required fields, caps within the ceiling, one account. |
 | `voice.py` | setup | Keeps your sample comments in `samples.jsonl` (apart from `voice.md`, so their text can never pose as a section), measures them, and checks every quirk in `voice.md` appears word for word in a sample. |
 | `parsing.py` | setup | Turns "1.2k", "5 hr. ago" and "Jan 25, 2008" into numbers and dates. |
-| `log.py` | setup | `reddit/log.jsonl`: what you posted, with link, sub and kind (help or promo). Feeds caps, the ratio and stats. |
+| `log.py` | setup | `reddit/log.jsonl`: what you posted, with link, sub, kind (comment or post) and purpose (help or promo). Feeds caps, the ratio and stats. |
 | `subs.py` | subs | Ranks subs from captures with fixed weights: size, weekly contributions, fit to your terms. |
 | `rules.py` | subs | Word rules that sort each rule into AI content, self-promo, links, minimums, flair. Quotes the rule word for word. Clear AI ban: skip. Unclear: needs your confirm. |
 | `plan.py` | plan | Phase, caps, what each phase allows, the seven-day table and the ratio check. |

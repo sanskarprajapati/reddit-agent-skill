@@ -67,6 +67,73 @@ class Summary(unittest.TestCase):
         self.assertEqual(out["total"], 0)
 
 
+class ReviewFixes(unittest.TestCase):
+    def test_comment_logged_with_thread_link_matches_one_comment(self):
+        items = stats.gather([cap([item("k1"), item("k2", sub="Coffee")])], ME)
+        log = [{"url": "https://www.reddit.com/r/espresso/comments/1abc2d/x/", "purpose": "promo", "kind": "comment",
+                "status": "posted", "date": "2026-10-20", "sub": "espresso"}]
+        out = stats.summary(items, log, TODAY)
+        self.assertEqual(out["by_purpose"]["promo"]["count"], 1)
+
+    def test_thread_link_with_two_candidates_stays_unknown(self):
+        items = stats.gather([cap([item("k1"), item("k2")])], ME)
+        log = [{"url": "https://www.reddit.com/r/espresso/comments/1abc2d/x/", "purpose": "promo", "kind": "comment",
+                "status": "posted", "date": "2026-10-20", "sub": "espresso"}]
+        self.assertNotIn("promo", stats.summary(items, log, TODAY)["by_purpose"])
+
+    def test_not_seen_window_uses_latest_read(self):
+        caps = [cap([item("old", created="2026-09-01T10:00:00Z")], captured="2026-09-02T10:00:00Z"),
+                cap([item("a", created="2026-10-18T10:00:00Z")], captured="2026-10-27T10:00:00Z")]
+        items = stats.gather(caps, ME)
+        row = lambda cid, d: {"url": "https://www.reddit.com/r/espresso/comments/1abc2d/x/%s/" % cid, "kind": "comment",
+                              "purpose": "help", "status": "posted", "date": d, "sub": "espresso"}
+        out = stats.summary(items, [row("zz1", "2026-10-20"), row("zz2", "2026-01-02")], TODAY)
+        self.assertEqual([e["date"] for e in out["not_seen"]], ["2026-10-20"])
+
+    def test_only_own_activity_pages(self):
+        for page in ("saved", "upvoted", "hidden", "gilded"):
+            c = cap([item("a")])
+            c["url"] = "https://www.reddit.com/user/%s/%s/" % (ME, page)
+            self.assertEqual(stats.gather([c], ME), {}, page)
+        for page in ("", "overview/", "submitted/"):
+            c = cap([item("a")])
+            c["url"] = "https://www.reddit.com/user/%s/%s" % (ME, page)
+            self.assertEqual(len(stats.gather([c], ME)), 1, page)
+
+    def test_type_mismatch_is_left_out(self):
+        bad = item("a")
+        bad["id"] = "t3_1abc2d"
+        self.assertEqual(stats.gather([cap([bad])], ME), {})
+
+    def test_own_profile_post_link(self):
+        post = item("p1", type_="post")
+        post["id"], post["url"] = None, "https://www.reddit.com/user/%s/comments/9zz9/my_post/" % ME
+        self.assertIn("t3_9zz9", stats.gather([cap([post])], ME))
+
+    def test_days_filter(self):
+        items = stats.gather([cap([item("a", created="2026-10-25T10:00:00Z"),
+                                   item("b", created="2026-09-01T10:00:00Z")])], ME)
+        self.assertEqual(stats.summary(items, [], TODAY, days=7)["total"], 1)
+
+    def test_subs_group_case_blind_and_best_worst_apart(self):
+        items = stats.gather([cap([item("a", sub="Espresso", score=1), item("b", score=2), item("c", score=3),
+                                   item("d", score=4)])], ME)
+        out = stats.summary(items, [], TODAY)
+        self.assertEqual(len(out["by_sub"]), 1)
+        best = {i["id"] for i in out["best"]}
+        self.assertFalse(best & {i["id"] for i in out["worst"]})
+
+    def test_bad_log_rows(self):
+        items = stats.gather([cap([item("a")])], ME)
+        stats.report(stats.summary(items, ["junk", {"status": "posted"}], TODAY), TODAY)
+
+    def test_no_scores(self):
+        items = stats.gather([cap([item("a", score=None)])], ME)
+        text = stats.report(stats.summary(items, [], TODAY), TODAY)
+        self.assertNotIn("None", text)
+        self.assertIn("1 item,", text)
+
+
 class Report(unittest.TestCase):
     def test_escapes(self):
         items = stats.gather([cap([item("a", text="[click](http://evil.example) <b>")])], ME)

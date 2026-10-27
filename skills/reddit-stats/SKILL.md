@@ -4,10 +4,10 @@ description: >-
   A light read of how the user's own Reddit posts and comments did: score, replies,
   which subs and which kind did well, help against promo, and any that Reddit labels
   as removed. Reads the user's own profile pages in their Chrome. Writes
-  reddit/stats.md and feeds back into /reddit-plan. Use when the user says "how did
+  reddit/stats.md and suggests changes for /reddit-plan. Use when the user says "how did
   my posts do", "reddit stats", "what worked", "did my comment get removed", or
   "review my week".
-argument-hint: "[week | month]"
+argument-hint: "[days, e.g. 7 or 30]"
 ---
 
 # reddit-stats
@@ -21,7 +21,7 @@ What the user typed after `/reddit-stats`: `$ARGUMENTS`
 ## The tools
 
 ```bash
-python3 "${CLAUDE_SKILL_DIR}/stats.py" build
+python3 "${CLAUDE_SKILL_DIR}/stats.py" build [--days N]
 python3 "${CLAUDE_SKILL_DIR}/../reddit-setup/capture.py" start|add FILE|halt NOTE|budget
 python3 "${CLAUDE_SKILL_DIR}/../reddit-setup/log.py" add|ratio
 ```
@@ -31,7 +31,7 @@ and use the `profile` shape in `${CLAUDE_SKILL_DIR}/../reddit-setup/CAPTURES.md`
 
 ## Step 1: read the profile pages
 
-`profile.json` needs the username. Then `capture.py start` and open, as the
+`profile.json` needs the username (set it with `/reddit-setup`). Then `capture.py start` and open, as the
 budget allows:
 
 1. `https://www.reddit.com/user/<name>/comments/`
@@ -46,17 +46,19 @@ Only the user's own profile. Never open another person's profile for this.
 
 ## Step 2: build and read it
 
-Run `stats.py build` and show `reddit/stats.md` in short:
+Run `stats.py build`, with `--days 7` for a week or `--days 30` for a month
+if the user asked for a period, and show `reddit/stats.md` in short:
 
 - totals: items, median score, replies, removed;
 - by sub, by kind (comment or post), and help against promo (from the log);
 - the best and weakest few, with links;
-- removed items, and anything logged as posted but not on the pages read
-  (open those to check; they may be removed or just not loaded).
+- removed items, and comments or posts logged with their own link that are
+  not on the pages read (open those to check; they may be removed or just not
+  loaded).
 
 Then three or four plain observations, each tied to numbers in the report: which
-sub answers best, whether longer or shorter replies did better, whether promo
-did worse than help. With fewer than 10 items, say it is too early to read much
+sub answers best, whether posts or comments did better, whether promo did
+worse than help. With fewer than 10 items, say it is too early to read much
 into it.
 
 Do not invent causes. "This one did well" is a fact; "because of the timing"
