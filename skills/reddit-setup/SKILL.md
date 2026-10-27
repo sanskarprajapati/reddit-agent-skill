@@ -19,8 +19,10 @@ What the user typed after `/reddit-setup`: `$ARGUMENTS`
 
 Say these to the user in your own words at the start, once:
 
-- **You click Post.** Claude reads Reddit in your Chrome and can type a draft
-  into a reply box. It never posts, comments, votes, joins, follows or DMs.
+- **Nothing is posted without your approval.** Claude reads Reddit in your
+  Chrome and types drafts into the reply box. In `manual` mode you click Post. In
+  `approved` mode Claude clicks it, but only for a draft you approved word for
+  word that day. It never votes, joins, follows, awards, reports, hides or DMs.
 - One account, yours. No second accounts, no vote help, nothing meant to get
   past Reddit's spam filters or a sub's rules.
 - A sub that bans AI-written content gets no drafts. A sub that bans
@@ -68,6 +70,10 @@ at a time:
   start`, open `reddit.com/user/<name>/`, write a `user_about` capture and add it,
   then copy the numbers it stored. Otherwise ask.
 - Their product, if any: name, one line on what it is, link. `null` if none.
+- How drafts go out (`posting`): `manual` (the default: Claude types, they click
+  Post) or `approved` (Claude clicks Post for drafts they approved word for word
+  that day). Explain both in a line each and let them choose. There is no
+  unattended mode.
 - Whether they want caps lower than the warm-up defaults (`caps`). They can only
   go down, never above 10 a day.
 

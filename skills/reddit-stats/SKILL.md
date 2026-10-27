@@ -16,7 +16,9 @@ What worked, from the user's own profile, read the way they would read it.
 
 What the user typed after `/reddit-stats`: `$ARGUMENTS`
 
-**You click Post.** This skill only reads the user's own profile pages.
+**Nothing is posted without your approval.** In `manual` mode you click Post;
+in `approved` mode Claude posts only drafts you approved word for word.
+This skill only reads the user's own profile pages.
 
 ## The tools
 

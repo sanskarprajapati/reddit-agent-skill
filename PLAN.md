@@ -3,7 +3,7 @@
 Claude skills that help one person use Reddit well: find the right communities,
 read their rules, find threads worth answering, and draft helpful replies in
 their own voice. Claude works in your own Chrome, where you are already logged
-in. It reads, searches and fills in reply boxes. You click Post.
+in. It reads, searches and fills in reply boxes; nothing is posted without your approval.
 
 Status: phases 1 to 5 built; the real run and the README example are next.
 
@@ -11,10 +11,11 @@ Status: phases 1 to 5 built; the real run and the README example are next.
 
 These are built into the tools and the skills, not just written in the README.
 
-1. **It never submits anything. You click Post.** It never posts, comments,
-   votes, joins, follows, saves, reports, chats or DMs. In your browser it may
-   open pages, search, scroll, read, and type an approved draft into a reply box,
-   then it stops (see "Browser handoff"). No Python tool talks to Reddit at all.
+1. **Nothing is posted without your approval.** In `manual` posting mode (the
+   default) Claude types the draft into the reply box and you click Post. In
+   `approved` mode Claude clicks Post, but only for drafts you approved word for
+   word that day; any edit voids the approval. There is no unattended mode. It
+   never votes, joins, follows, awards, reports, hides, chats or DMs. No Python tool talks to Reddit at all.
    A test scans every Python file and fails the build if a network or write call
    ever shows up (`urlopen`, `requests`, `POST`, `oauth`, `praw`, `login`,
    `access_token`).

@@ -5,10 +5,19 @@ can be useful, read their rules, find threads worth answering, and draft replies
 that sound like you. Free and MIT licensed. Nothing to sign up for, no API key.
 
 Claude works in your own Chrome, where you are already logged in. It searches,
-reads, and can type a draft into the reply box for you. Then it stops.
+reads, and types each draft into the reply box for you.
 
-**You click Post.** It never posts, comments, votes, joins, follows or sends a
-message. It never logs in, never uses a second account, and never does anything
+**Nothing is posted without your approval.** You pick how drafts go out, in
+`reddit/profile.json`:
+
+- `"posting": "manual"` (the default): Claude types the draft and stops. You read
+  it and click Post.
+- `"posting": "approved"`: you approve drafts word for word, one at a time or the
+  day's queue in one go, and Claude clicks Post for those. An approval lasts that
+  day, and any edit after it voids it.
+
+There is no unattended mode. It never votes, joins, follows, awards, reports,
+hides or sends a message. It never logs in, never uses a second account, and never does anything
 meant to get past Reddit's spam filters or a community's rules. A subreddit that
 bans AI-written content gets no drafts.
 
@@ -70,13 +79,13 @@ The path below is for the copy install; for a plugin install, point it at
 }
 ```
 
-It always denies page scripts, typing with submit on, Ctrl or Cmd plus Enter,
-clicks on controls named Comment, Post, Save, Submit, Send, a vote arrow, Join,
-Follow, Award, Share, Report, Hide or Block, and Reddit's messages, chat, mod
-mail, notifications, settings and login pages. During a handoff, once the draft
-is typed, it denies every click and every Enter until you say done or skip. That
-matters because a click given as a page reference or screen position carries no
-label the hook could read. In a project where it is set up, it applies to all
+It always denies page scripts, typing with submit on, clicks on a vote arrow,
+Join, Follow, Award, Share, Report, Hide, Block or Message, and Reddit's messages,
+chat, mod mail, notifications, settings and login pages. Sending works through
+the handoff: once a draft is typed, an approved draft gets exactly one click or
+Ctrl+Enter, which is the send, and then everything locks; any other draft gets
+none, so you send it. That matters because a click given as a page reference or
+screen position carries no label the hook could read. In a project where it is set up, it applies to all
 browser use through Claude there, not only Reddit.
 
 ## First run
@@ -96,7 +105,7 @@ browser use through Claude there, not only Reddit.
 | `/reddit-subs` | Subs and their rules | Searches Reddit for communities, opens each for members and weekly activity, ranks them, and reads every rule: AI content, self-promotion, links, account minimums, flair. A sub that bans AI-written content is skipped. |
 | `/reddit-plan` | Warm-up, week and queue | Your phase from account age, karma and your log, the cap per day, the week across your OK subs, and today's queue with a calendar file for reminders. Promotion stays at 1 in 10 or less. |
 | `/reddit-threads` | Thread finder | Reads your home feed, the New tab of your subs and Reddit search. Ranks threads by relevance, freshness, room to help and whether it is a real question. Leaves out locked, archived, your own and bot threads. |
-| `/reddit-draft` | Drafter and handoff | A reply in your voice that answers the question, within the rules, the phase and the cap. Checked before you see it. On your word, typed into the reply box in Chrome. You read it, edit it, and click Post, or not. |
+| `/reddit-draft` | Drafter and handoff | A reply in your voice that answers the question, within the rules, the phase and the cap. Checked before you see it. Typed into the reply box in Chrome. You click Post, or in approved mode you approve the text and Claude posts it. |
 | `/reddit-check` | Removal check | "Would this get removed?" Fixed points for rule fit, self-promotion, links, account minimums, flair, length, shouting and AI tells, each with a reason. Then a cleaned version in your voice, checked again. |
 | `/reddit-stats` | How it went | Your own profile pages: score and replies by sub, by kind, help against promo, and anything Reddit marks as removed. |
 
@@ -144,8 +153,9 @@ so no number comes from a model's memory.
 
 ## Safeguards
 
-- **Posting.** There is no send, vote or message code anywhere, and a test fails
-  if a tool ever imports a network library or names a login.
+- **Posting.** Only the text you approved, only after it is typed, only once,
+  and only in a sub whose rules allow it. No tool talks to Reddit itself, and a
+  test fails if a tool ever imports a network library or names a login.
 - **Rules.** No draft is registered for a sub whose rules are not read,
   are over 30 days old, or are unclear about AI and not confirmed by you. A ban
   on AI-written content is final.

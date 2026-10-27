@@ -18,7 +18,9 @@ the calendar file holds reminders for the user.
 
 What the user typed after `/reddit-plan`: `$ARGUMENTS`
 
-**You click Post.** This skill writes plans. It never opens Reddit.
+**Nothing is posted without your approval.** In `manual` mode you click Post;
+in `approved` mode Claude posts only drafts you approved word for word.
+This skill writes plans. It never opens Reddit.
 
 ## The tools
 

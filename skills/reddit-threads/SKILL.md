@@ -17,7 +17,9 @@ Where the user can be useful today.
 
 What the user typed after `/reddit-threads`: `$ARGUMENTS`
 
-**You click Post.** This skill only reads. It never votes, joins, hides, saves
+**Nothing is posted without your approval.** In `manual` mode you click Post;
+in `approved` mode Claude posts only drafts you approved word for word.
+This skill only reads. It never votes, joins, hides, saves
 or replies.
 
 ## The tools

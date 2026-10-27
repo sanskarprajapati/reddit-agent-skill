@@ -91,6 +91,19 @@ class Check(unittest.TestCase):
                 profile.check(good(product=product), TODAY)
 
 
+class Posting(unittest.TestCase):
+    def test_default_manual(self):
+        self.assertEqual(profile.check(good(), TODAY)["posting"], "manual")
+
+    def test_approved(self):
+        self.assertEqual(profile.check(good(posting="approved"), TODAY)["posting"], "approved")
+
+    def test_no_unattended_mode(self):
+        for mode in ("auto", "autonomous", "unattended"):
+            with self.assertRaisesRegex(ValueError, "posting"):
+                profile.check(good(posting=mode), TODAY)
+
+
 class Files(unittest.TestCase):
     def test_init_then_check(self):
         with tempfile.TemporaryDirectory() as tmp:

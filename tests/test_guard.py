@@ -100,5 +100,42 @@ class AfterTyping(unittest.TestCase):
         self.assertIsNone(decide("mcp__claude-in-chrome__computer", self.dir, action="left_click", ref="ref_42"))
 
 
+class ApprovedSend(unittest.TestCase):
+    """With an approved draft, one send is allowed after typing, then everything locks."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.dir = self.tmp.name
+        store.write_json(os.path.join(self.dir, ".handoff"), {"id": "D0001", "typed": False, "may_submit": True})
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_no_send_before_typing(self):
+        self.assertIsNotNone(decide("mcp__playwright__browser_click", self.dir, element="Comment button"))
+
+    def test_one_send_after_typing(self):
+        decide("mcp__claude-in-chrome__computer", self.dir, action="type", text="grind finer")
+        self.assertIsNone(decide("mcp__playwright__browser_click", self.dir, element="Comment button"))
+        self.assertTrue(store.read_json(os.path.join(self.dir, ".handoff"))["submitted"])
+        self.assertIsNotNone(decide("mcp__playwright__browser_click", self.dir, element="Comment button"))
+        self.assertIsNotNone(decide("mcp__claude-in-chrome__computer", self.dir, action="left_click", ref="ref_9"))
+
+    def test_ref_click_is_the_one_send(self):
+        decide("mcp__claude-in-chrome__computer", self.dir, action="type", text="grind finer")
+        self.assertIsNone(decide("mcp__claude-in-chrome__computer", self.dir, action="left_click", ref="ref_9"))
+        self.assertIsNotNone(decide("mcp__claude-in-chrome__computer", self.dir, action="left_click", ref="ref_10"))
+
+    def test_never_votes_joins_or_messages_even_now(self):
+        decide("mcp__claude-in-chrome__computer", self.dir, action="type", text="grind finer")
+        for label in ("upvote arrow", "Join", "Follow", "Award", "Report", "Hide", "Message"):
+            self.assertIsNotNone(decide("mcp__playwright__browser_click", self.dir, element=label), label)
+
+    def test_keyboard_submit_counts_as_the_send(self):
+        decide("mcp__claude-in-chrome__computer", self.dir, action="type", text="grind finer")
+        self.assertIsNone(decide("mcp__claude-in-chrome__computer", self.dir, action="key", text="ctrl+Return"))
+        self.assertIsNotNone(decide("mcp__claude-in-chrome__computer", self.dir, action="key", text="ctrl+Return"))
+
+
 if __name__ == "__main__":
     unittest.main()

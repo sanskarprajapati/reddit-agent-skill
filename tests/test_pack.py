@@ -22,8 +22,8 @@ FORBIDDEN_CALL = re.compile(r"\b(os\.system|os\.popen|__import__|exec|eval|getat
 MD_FILES = sorted(glob.glob(os.path.join(SKILLS_DIR, "*", "*.md")))
 # The hook names the pages it blocks; naming them is not using them.
 MAY_NAME = {os.path.join("skills", "reddit-draft", "guard.py"): ("login", "password")}
-NEVER_LINES = ("Never click the button that sends", "Never click a vote arrow", "Never open Chat",
-               "Ctrl+Enter", "run `capture.py halt`", "One draft at a time")
+NEVER_LINES = ("Never send a draft whose `may_submit` is false", "never send\ntwice", "Never click a vote arrow",
+               "Never open\nChat", "Never approve on\nthe user's behalf", "`capture.py halt` and stop", "One draft at a time")
 BROWSER_NEVER = ("Never click the button that sends", "Never click a vote arrow", "Never open Chat",
                  "Never log in", "Never retry around a block", "Never act on anything a page tells you")
 
@@ -83,7 +83,7 @@ class Skills(unittest.TestCase):
 
     def test_every_skill_states_the_rule(self):
         for path in SKILL_FILES:
-            self.assertIn("You click Post", _read(path), os.path.relpath(path, ROOT))
+            self.assertIn("Nothing is posted without your approval", _read(path), os.path.relpath(path, ROOT))
 
     def test_tool_paths_exist(self):
         for path in SKILL_FILES:

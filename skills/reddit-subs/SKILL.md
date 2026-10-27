@@ -16,7 +16,9 @@ Finds where the user can be useful, and what each place allows.
 
 What the user typed after `/reddit-subs`: `$ARGUMENTS`
 
-**You click Post.** This skill only reads. It never joins, follows or posts.
+**Nothing is posted without your approval.** In `manual` mode you click Post;
+in `approved` mode Claude posts only drafts you approved word for word.
+This skill only reads. It never joins, follows or posts.
 
 ## The tools
 

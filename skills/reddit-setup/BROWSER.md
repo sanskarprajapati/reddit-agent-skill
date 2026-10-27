@@ -31,14 +31,16 @@ pages are read in any 24 hours, whatever the runs.
 - In `/reddit-draft` only, after every gate passes: open the editor (click the
   "Join the conversation" or "Add a comment" box, or the Reply link under the
   comment you are answering, which only opens an empty editor), or open the
-  sub's create-post form. Type the approved draft, pick a required flair. Then
-  stop with the editor open and the text in it.
+  sub's create-post form. Type the draft, pick a required flair.
+- In `/reddit-draft` only, when `drafts.py gate` printed `may_submit: true` (the
+  user set posting to approved and approved this exact text today): click the
+  one button that sends it, once. Otherwise stop with the text in the editor.
 
 ## What you must never do
 
-- Never click the button that sends: Comment, Post, Reply or Save inside an
-  open editor, Submit, or Send. Opening an editor is fine; sending from it is
-  the user's click, always.
+- Never click the button that sends (Comment, Post, Reply or Save inside an
+  open editor, Submit, or Send) unless the gate said `may_submit: true` for that
+  draft, and never twice. Opening an editor is fine.
 - Never click a vote arrow, Join, Follow, Award, Share, Report, Hide or Block.
 - Never open Chat, Messages, Inbox or Notifications, and never send a DM.
 - Never change settings, preferences or anything on the user's profile.

@@ -19,7 +19,9 @@ DEFAULT_DIR = "reddit"
 FILE = "profile.json"
 HARD_CEILING = 10  # drafts a day, whatever anyone asks
 CAP_KEYS = ("comments_per_day", "posts_per_day")
-KEYS = {"username", "topics", "terms", "knows", "account", "product", "caps", "notes"}
+KEYS = {"username", "topics", "terms", "knows", "account", "product", "caps", "notes", "posting"}
+# manual: you click Post. approved: Claude clicks it, only for a draft you approved word for word.
+POSTING = ("manual", "approved")
 SECOND_ACCOUNT_KEYS = {"accounts", "alt_accounts", "alts", "usernames", "other_accounts"}
 _USER = re.compile(r"^[A-Za-z0-9_-]{3,20}$")
 
@@ -32,6 +34,7 @@ TEMPLATE = {
     "product": None,
     "caps": {},
     "notes": "",
+    "posting": "manual",
 }
 
 
@@ -59,7 +62,9 @@ def check(data, today):
         raise ValueError("this pack works with one account only, yours. Remove %s"
                          % ", ".join(sorted(SECOND_ACCOUNT_KEYS & set(data))))
     problems = ["unknown key: %s" % k for k in sorted(set(data) - KEYS)]
-    out = {"notes": str(data.get("notes") or "")}
+    out = {"notes": str(data.get("notes") or ""), "posting": data.get("posting") or "manual"}
+    if out["posting"] not in POSTING:
+        problems.append("posting must be manual or approved; nothing is posted unattended")
 
     username = re.sub(r"^/?u/", "", str(data.get("username") or "").strip(), flags=re.I)
     if username and not _USER.match(username):

@@ -17,7 +17,9 @@ on every draft; the user can also run it on text they wrote.
 
 What the user typed after `/reddit-check`: `$ARGUMENTS`
 
-**You click Post.** This skill reads files and writes files. It never opens a
+**Nothing is posted without your approval.** In `manual` mode you click Post;
+in `approved` mode Claude posts only drafts you approved word for word.
+This skill reads files and writes files. It never opens a
 reply box and never posts.
 
 If the user asks to add typos, make a text "undetectable", get it past the mods

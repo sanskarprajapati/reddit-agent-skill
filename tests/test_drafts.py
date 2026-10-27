@@ -220,6 +220,57 @@ class CapAccounting(Base):
         self.assertIsNone(queue.ics([], TODAY))
 
 
+class Approved(Base):
+    def setUp(self):
+        super().setUp()
+        p = store.read_json(os.path.join(self.dir, "profile.json"))
+        p["posting"] = "approved"
+        store.write_json(os.path.join(self.dir, "profile.json"), p)
+
+    def test_manual_mode_never_submits(self):
+        p = store.read_json(os.path.join(self.dir, "profile.json"))
+        p["posting"] = "manual"
+        store.write_json(os.path.join(self.dir, "profile.json"), p)
+        d = self.new()
+        with self.assertRaisesRegex(ValueError, "manual"):
+            queue.approve(self.dir, [d["id"]], TODAY)
+
+    def test_unapproved_draft_is_typed_not_sent(self):
+        d = self.new()
+        out = queue.gate(self.dir, d["id"], TODAY)
+        self.assertFalse(out["may_submit"])
+        self.assertFalse(store.read_json(os.path.join(self.dir, ".handoff"))["may_submit"])
+
+    def test_approved_draft_may_be_sent(self):
+        d = self.new()
+        queue.approve(self.dir, [d["id"]], TODAY)
+        out = queue.gate(self.dir, d["id"], TODAY)
+        self.assertTrue(out["may_submit"])
+        self.assertTrue(store.read_json(os.path.join(self.dir, ".handoff"))["may_submit"])
+
+    def test_edit_after_approval_voids_it(self):
+        d = self.new()
+        queue.approve(self.dir, [d["id"]], TODAY)
+        store.write_text(d["file"], HELP + " and weigh your dose")
+        self.assertFalse(queue.gate(self.dir, d["id"], TODAY)["may_submit"])
+
+    def test_approval_is_for_one_day(self):
+        d = self.new()
+        queue.approve(self.dir, [d["id"]], TODAY)
+        later = TODAY + datetime.timedelta(days=1)
+        self.assertFalse(queue.gate(self.dir, d["id"], later)["may_submit"])
+
+    def test_batch_approve(self):
+        ids = [self.new(name="b%d.txt" % n)["id"] for n in range(2)]
+        self.assertEqual(queue.approve(self.dir, ids, TODAY), 2)
+
+    def test_closed_drafts_cannot_be_approved(self):
+        d = self.new()
+        queue.skip(self.dir, d["id"], TODAY)
+        with self.assertRaisesRegex(ValueError, "skipped"):
+            queue.approve(self.dir, [d["id"]], TODAY)
+
+
 class Calendar(Base):
     def test_ics(self):
         d = self.new()

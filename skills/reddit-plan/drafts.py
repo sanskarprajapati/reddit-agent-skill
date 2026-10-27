@@ -4,6 +4,7 @@
   python3 drafts.py new  --sub S --kind comment|post --url URL --file F --purpose help|promo
                         [--title T] [--flair F] [--when HH:MM] [--title-hint "thread title"]
   python3 drafts.py gate ID        # may Claude open this draft in the browser now? prints what to type
+  python3 drafts.py approve ID [ID...]   # the user approved these words; Claude may post them today
   python3 drafts.py done ID [--url URL_OF_YOUR_COMMENT]
   python3 drafts.py skip ID
   python3 drafts.py list
@@ -16,6 +17,7 @@ again on the text as it is now, and only one draft is handed off at a time.
 
 import argparse
 import datetime
+import hashlib
 import json
 import os
 import re
@@ -140,13 +142,40 @@ def gate(folder, draft_id, today):
         text = _read_text(draft["file"])
         _vet(folder, draft["sub"], kind, draft["url"], text, draft["purpose"], today, draft["title"] or None,
              draft["flair"] or None)
+        may_submit = profile.get("posting") == "approved" and draft.get("approval") == _fingerprint(draft, text, today)
         draft.update(status="handed", handed=True, date=today.isoformat())
         _save(folder, drafts)
         mark = store.read_json(_marker(folder))
         if not (mark and mark.get("id") == draft_id):  # a second gate must not undo "typed"
-            store.write_json(_marker(folder), {"id": draft_id, "url": draft["url"], "typed": False})
+            store.write_json(_marker(folder), {"id": draft_id, "url": draft["url"], "typed": False,
+                                               "may_submit": may_submit})
+        elif mark.get("may_submit") != may_submit:
+            store.write_json(_marker(folder), dict(mark, may_submit=may_submit and not mark.get("submitted")))
     return {"id": draft_id, "url": draft["url"], "kind": kind, "text": text, "title": draft["title"],
-            "flair": draft["flair"]}
+            "flair": draft["flair"], "may_submit": may_submit}
+
+
+def _fingerprint(draft, text, day):
+    """What the user approved: this text, title and flair, for this thread, on this day."""
+    parts = [draft["id"], draft["url"], draft.get("title", ""), draft.get("flair", ""), text, day.isoformat()]
+    return hashlib.sha256("\n\x00".join(parts).encode("utf-8")).hexdigest()
+
+
+def approve(folder, draft_ids, today):
+    """Record that the user approved these drafts, word for word, for Claude to post today.
+    Only in approved posting mode. Any edit afterwards voids the approval."""
+    with store.locked(_path(folder)):
+        profile, _, _, _ = plan.load(folder, today)
+        if profile.get("posting") != "approved":
+            raise ValueError("posting is manual in profile.json: you click Post. Set it to approved to change that")
+        drafts = read(folder)
+        for draft_id in draft_ids:
+            draft = _find(drafts, draft_id)
+            if draft["status"] not in OPEN:
+                raise ValueError("%s is %s already" % (draft_id, draft["status"]))
+            draft["approval"] = _fingerprint(draft, _read_text(draft["file"]), today)
+        _save(folder, drafts)
+    return len(draft_ids)
 
 
 def _close(folder, draft_id, today, status, url=None):
@@ -249,6 +278,7 @@ def _main(argv=None):
     new.add_argument("--purpose", required=True, choices=("help", "promo"))
     for name in ("title", "flair", "when", "title-hint"):
         new.add_argument("--" + name, default="")
+    sub.add_parser("approve").add_argument("ids", nargs="+")
     for name in ("gate", "skip"):
         sub.add_parser(name).add_argument("id")
     closer = sub.add_parser("done")
@@ -263,6 +293,8 @@ def _main(argv=None):
             d = new_draft(args.dir, args.sub, args.kind, args.url, args.file, args.purpose, today,
                           args.title or None, args.flair or None, args.when, args.title_hint)
             print("registered %s (%s risk)" % (d["id"], d["risk"]))
+        elif args.cmd == "approve":
+            print("approved %d for posting today; any edit voids it" % approve(args.dir, args.ids, today))
         elif args.cmd == "gate":
             print(json.dumps(gate(args.dir, args.id, today), indent=2, ensure_ascii=False))
         elif args.cmd in ("done", "skip"):
