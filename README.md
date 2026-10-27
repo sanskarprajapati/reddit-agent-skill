@@ -72,7 +72,7 @@ The path below is for the copy install; for a plugin install, point it at
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "mcp__claude-in-chrome__.*|mcp__playwright__.*|Bash",
+        "matcher": "mcp__claude-in-chrome__.*|mcp__playwright__.*|Bash|Write|Edit|MultiEdit",
         "hooks": [{"type": "command", "command": "python3 ~/.claude/skills/reddit-draft/guard.py"}]
       }
     ]
@@ -86,7 +86,15 @@ chat, mod mail, notifications, settings and login pages, and it makes Claude Cod
 ask you before any `drafts.py approve`. Once a draft is typed, every click and
 Enter is denied, except one click on a button named Comment, Reply or Post (or
 one Ctrl+Enter), and only if posting is approved in your profile, the draft was
-approved today, and what was typed is exactly the approved text. That matters because a click given as a page reference or
+approved today, what was typed is exactly the approved text, and the page is the
+thread it was approved for. Claude Code also asks you before any change to the
+files that decide what may be posted.
+
+What it is not: a lock. Claude in Chrome clicks a page element by reference, with
+no label, so before typing the hook cannot tell a vote from a reply link; the
+skills' rules cover that. And a hook cannot stop a model that sets out to get
+round it, since Claude can run commands in your project. Think of it as a
+seatbelt for mistakes, and keep the confirm prompts on. That matters because a click given as a page reference or
 screen position carries no label the hook could read. In a project where it is set up, it applies to all
 browser use through Claude there, not only Reddit.
 

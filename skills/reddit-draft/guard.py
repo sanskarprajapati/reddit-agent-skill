@@ -4,13 +4,14 @@ Optional in manual posting mode; required for approved mode (drafts.py checks it
 
 Add to .claude/settings.json in your project (the README has the full snippet):
 
-  "PreToolUse": [{"matcher": "mcp__claude-in-chrome__.*|mcp__playwright__.*|Bash",
+  "PreToolUse": [{"matcher": "mcp__claude-in-chrome__.*|mcp__playwright__.*|Bash|Write|Edit|MultiEdit",
                   "hooks": [{"type": "command", "command": "python3 <path>/guard.py"}]}]
 
 Always denied: every page script; typing with submit on; a click whose label names a
 vote, Save (Reddit's bookmark), Join, Follow, Award, Share, Report, Hide, Block,
 Message or Chat; and Reddit's messages, chat, mod mail, notifications, settings and
-login pages. `drafts.py approve` always asks the user to confirm.
+login pages. Approving a draft, and any change to reddit/.handoff, drafts.jsonl or
+profile.json, makes Claude Code ask the user first.
 
 Sending runs through the handoff marker that `drafts.py gate` writes (reddit/.handoff).
 Once anything is typed, every click and Enter is denied, with one exception: one click
@@ -19,6 +20,13 @@ only when all of these hold: the marker says may_submit, it is dated today,
 profile.json still says posting "approved", what was typed hashes to the approved
 title and body with nothing extra, and the marker records the send before it happens.
 A click given only as a ref or screen position carries no label, so it never sends.
+After typing, every key is denied except that one Ctrl/Cmd+Enter. The send must happen
+on the thread the draft was approved for. Typing outside a handoff leaves a "stray"
+marker that blocks sending until the user checks the box and drafts.py clear runs.
+
+What it cannot do: see what a ref-only click lands on before typing (so a vote by
+ref is stopped by the skill's rules, not by this hook), or stop a model that sets
+out to get round it. It is a seatbelt against mistakes, not a lock.
 """
 
 import datetime
@@ -41,14 +49,15 @@ NEVER = re.compile(r"\b(upvote|downvote|vote|save|saved|join|joined|leave|follow
 EDITOR = re.compile(r"add a comment|join the conversation|comment box|reply box|text box|editor|text field|"
                     r"input|title field|body field|reply link", re.I)
 SUBMIT_KEYS = re.compile(r"(ctrl|control|cmd|command|meta|super|win|controlormeta)\s*\+\s*(kp_)?(return|enter)", re.I)
-ENTER = re.compile(r"\b(return|enter|kp_enter)\b", re.I)
 URL = re.compile(r"(?:https?://)?(?:[\w-]+\.)*reddit\.com(?::\d+)?/[^\s'\"<>]*|https?://[^\s'\"<>]+", re.I)
 PRIVATE_PATHS = {"message", "messages", "chat", "notifications", "settings", "prefs", "login", "register", "account",
                  "password", "mail"}
 PRIVATE_HOSTS = {"chat.reddit.com", "mod.reddit.com"}
 TARGET_KEYS = ("element", "text", "selector", "query", "name", "label", "target", "description")
 TYPED_KEYS = ("text", "value", "values")
-APPROVE = re.compile(r"drafts\.py[\"']?\s+(?:--dir\s+\S+\s+)?approve\b")
+STATE_FILES = re.compile(r"\.handoff\b|drafts\.jsonl|profile\.json")
+EDIT_TOOLS = ("Write", "Edit", "MultiEdit", "NotebookEdit")
+_THREAD = re.compile(r"^(/r/[^/]+/comments/[a-z0-9]+)", re.I)
 
 
 def sha(text):
@@ -133,12 +142,39 @@ def _may_send(mark, folder):
             and profile.get("posting") == "approved" and _approved_text(mark))
 
 
-def _bash(data):
+def _state(tool, data):
+    """Approving, and changing the files that decide what may be sent, need the user's own click."""
+    if tool in EDIT_TOOLS:
+        path = str(data.get("file_path") or data.get("notebook_path") or "")
+        if STATE_FILES.search(os.path.basename(path)):
+            return _decision("ask", "%s decides what Claude may post. Allow this change only if you asked for it"
+                             % os.path.basename(path))
+        return None
     command = str(data.get("command", ""))
-    if APPROVE.search(command):
+    if re.search(r"\bapprove\b", command) and "drafts" in command:
         return _decision("ask", "approving drafts lets Claude post them word for word today. Approve only text "
-                                "you have read: %s" % command[-120:])
+                                "you have read: %s" % command[-160:])
+    if STATE_FILES.search(command):
+        return _decision("ask", "this command touches a file that decides what Claude may post: %s" % command[-160:])
     return None
+
+
+def _typed_values(data):
+    out = []
+    for key in TYPED_KEYS:
+        value = data.get(key)
+        out += [value] if isinstance(value, str) else [v for v in value if isinstance(v, str)] \
+            if isinstance(value, list) else []
+    for field in data.get("fields") or []:
+        if isinstance(field, dict):
+            out += [str(field[k]) for k in ("value", "text") if isinstance(field.get(k), str)]
+    return out
+
+
+def _thread(url):
+    path = urlparse(str(url or "") if "://" in str(url or "") else "https://" + str(url or "")).path.lower()
+    match = _THREAD.match(path)
+    return match.group(1) if match else path.rstrip("/")
 
 
 def decide(event, folder=None):
@@ -147,8 +183,8 @@ def decide(event, folder=None):
     data = event.get("tool_input") or {}
     if not isinstance(data, dict):
         return None
-    if tool == "Bash":
-        return _bash(data)
+    if tool == "Bash" or tool in EDIT_TOOLS:
+        return _state(tool, data)
     if not BROWSER_TOOL.search(tool):
         return None
     every = list(_strings(data))
@@ -166,18 +202,22 @@ def decide(event, folder=None):
     if any(_names_never(t) for t in targets):
         return _deny("this pack never votes, saves, joins, follows, awards, reports, hides or messages")
     mark = _read_marker(folder)
+    if mark is not None and ("navigate" in tool.lower() or action == "navigate") and data.get("url"):
+        mark["last_url"] = str(data["url"])
+        if not _write_marker(folder, mark):
+            return _deny("could not record the page, so nothing more happens in this draft")
     if typing:
-        if mark is not None:
-            texts = [str(data[k]) for k in TYPED_KEYS if isinstance(data.get(k), str)]
+        if folder:
+            mark = mark if mark is not None else {"id": None, "stray": True, "may_submit": False}
             mark["typed"] = True
-            mark["typed_sha"] = mark.get("typed_sha", []) + [sha(t) for t in texts]
+            mark["typed_sha"] = mark.get("typed_sha", []) + [sha(t) for t in _typed_values(data)]
             if not _write_marker(folder, mark):
-                return _deny("could not record the typing, so nothing more happens in this draft")
+                return _deny("could not record the typing, so it is not done")
         return None
     keyed_send = pressing and any(SUBMIT_KEYS.search(s) for s in every)
     named_send = any(_names_send(t) for t in targets)
     typed = bool(mark and mark.get("typed"))
-    if not (keyed_send or named_send or (typed and (clicking or (pressing and any(ENTER.search(s) for s in every))))):
+    if not (keyed_send or named_send or (typed and (clicking or pressing))):
         return None
     if not typed:
         return _deny("nothing is sent before the draft is typed")
@@ -186,6 +226,8 @@ def decide(event, folder=None):
                      "and only if it was approved" % mark.get("id", ""))
     if mark.get("submitted"):
         return _deny("draft %s was already sent. Say done" % mark.get("id", ""))
+    if mark.get("url") and _thread(mark.get("last_url")) != _thread(mark["url"]):
+        return _deny("this page is not the thread draft %s was approved for" % mark.get("id", ""))
     if not _may_send(mark, folder):
         return _deny("draft %s is not approved as typed, today, in approved mode. The user clicks Post"
                      % mark.get("id", ""))

@@ -131,6 +131,10 @@ def gate(folder, draft_id, today):
         draft = _find(drafts, draft_id)
         if draft["status"] not in OPEN:
             raise ValueError("%s is %s already" % (draft_id, draft["status"]))
+        stray = store.read_json(_marker(folder))
+        if stray and stray.get("stray"):
+            raise ValueError("text was typed into Reddit outside a handoff. Ask the user to check the box is empty "
+                             "(or reload the page), then run drafts.py clear")
         busy = [d["id"] for d in drafts if d["status"] == "handed" and d["id"] != draft_id]
         if busy:
             raise ValueError("finish %s first: say done or skip" % busy[0])
@@ -158,6 +162,15 @@ def gate(folder, draft_id, today):
             why_not = why_not or ("" if may_submit else "this handoff started without an approval")
     return {"id": draft_id, "url": draft["url"], "kind": kind, "text": text, "title": draft["title"],
             "flair": draft["flair"], "may_submit": may_submit, "why_not": why_not}
+
+
+def clear(folder):
+    """Remove a stray-typing marker once the user has checked the box is empty."""
+    mark = store.read_json(_marker(folder))
+    if mark and mark.get("stray"):
+        os.remove(_marker(folder))
+        return True
+    return False
 
 
 def _sha(text):
@@ -326,6 +339,7 @@ def _main(argv=None):
     closer.add_argument("id")
     closer.add_argument("--url")
     sub.add_parser("list")
+    sub.add_parser("clear")
     sub.add_parser("today")
     args = parser.parse_args(argv)
     today = datetime.date.today()
@@ -347,6 +361,8 @@ def _main(argv=None):
         elif args.cmd in ("done", "skip"):
             d = done(args.dir, args.id, today, args.url) if args.cmd == "done" else skip(args.dir, args.id, today)
             print("%s %s and logged" % (d["id"], d["status"]))
+        elif args.cmd == "clear":
+            print("cleared" if clear(args.dir) else "nothing to clear")
         elif args.cmd == "list":
             for d in read(args.dir):
                 print("%s %s %-8s r/%-20s %-7s %s" % (d["id"], d["date"], d["status"], d["sub"], d["kind"], d["file"]))

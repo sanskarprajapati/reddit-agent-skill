@@ -113,7 +113,9 @@ have not seen, and never change a draft after it was approved.
 "post the approved ones" means send. One draft at a time:
 
 1. Run `drafts.py gate ID`. It checks everything again on the text as it is now.
-   If it refuses, stop and say why. It prints the link, the exact text, and
+   If it refuses, stop and say why. If it says text was typed outside a handoff,
+   ask the user to look at the reply box; only when they say it is empty (or they
+   reloaded the page), run `drafts.py clear` and gate again. It prints the link, the exact text, and
    `may_submit`: true only in approved mode for an approved, unchanged draft.
 2. Inside a capture run, open the link in Chrome.
 3. Find the editor. For a reply to the post: the "Join the conversation" or "Add
@@ -136,7 +138,10 @@ have not seen, and never change a draft after it was approved.
      its link. If the text in the box differs, or the send fails or shows an
      error, do not retry: stop and tell the user.
 
-Never click a vote arrow, Join, Follow, Award, Share, Report or Hide. Never open
+Never type anything into Reddit outside this step, never press keys after typing
+except the one approved send, and never edit `reddit/.handoff`, `drafts.jsonl` or
+`profile.json` to change what may be sent. Never click a vote arrow, Join,
+Follow, Award, Share, Report or Hide. Never open
 Chat or Messages. Never send a draft whose `may_submit` is false, and never send
 twice. If Reddit shows a captcha, a rate limit or any warning, run
 `capture.py halt` and stop. Never wait, rephrase or retry to get past a filter or

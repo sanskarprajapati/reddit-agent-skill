@@ -302,6 +302,14 @@ class Approved(Base):
         d = self.new()
         self.assertIn("approved", queue.queue_md(queue.read(self.dir), TODAY, mode="approved"))
 
+    def test_gate_refuses_after_stray_typing(self):
+        d = self.new()
+        store.write_json(os.path.join(self.dir, ".handoff"), {"id": None, "stray": True, "typed": True})
+        with self.assertRaisesRegex(ValueError, "stray|clear"):
+            queue.gate(self.dir, d["id"], TODAY)
+        queue.clear(self.dir)
+        queue.gate(self.dir, d["id"], TODAY)
+
     def test_closed_drafts_cannot_be_approved(self):
         d = self.new()
         queue.skip(self.dir, d["id"], TODAY)

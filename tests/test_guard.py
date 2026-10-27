@@ -94,10 +94,10 @@ class AfterTyping(unittest.TestCase):
         decide("mcp__claude-in-chrome__form_input", self.dir, ref="ref_3", value="grind finer")
         self.assertIsNotNone(decide("mcp__claude-in-chrome__computer", self.dir, action="left_click", ref="ref_9"))
 
-    def test_no_marker_no_lock(self):
+    def test_typing_without_a_handoff_still_locks(self):
         os.remove(os.path.join(self.dir, ".handoff"))
         decide("mcp__claude-in-chrome__computer", self.dir, action="type", text="x")
-        self.assertIsNone(decide("mcp__claude-in-chrome__computer", self.dir, action="left_click", ref="ref_42"))
+        self.assertIsNotNone(decide("mcp__claude-in-chrome__computer", self.dir, action="left_click", ref="ref_42"))
 
 
 def sha(text):
@@ -197,6 +197,68 @@ class ApprovedSend(unittest.TestCase):
         self.mark({"body_sha": sha("press ctrl+enter to run the cell")})
         self.assertIsNone(self.type_("press ctrl+enter to run the cell"))
         self.assertIsNone(self.send())
+
+
+class Rereview(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.dir = self.tmp.name
+        store.write_json(os.path.join(self.dir, "profile.json"), {"posting": "approved"})
+        store.write_json(os.path.join(self.dir, ".handoff"), {
+            "id": "D0001", "typed": False, "may_submit": True, "date": TODAY, "body_sha": sha("grind finer"),
+            "title_sha": "", "url": "https://www.reddit.com/r/espresso/comments/1abc2d/x/"})
+        decide("mcp__claude-in-chrome__navigate", self.dir, url="https://www.reddit.com/r/espresso/comments/1abc2d/x/")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def type_(self, text="grind finer"):
+        return decide("mcp__claude-in-chrome__computer", self.dir, action="type", text=text)
+
+    def send(self):
+        return decide("mcp__playwright__browser_click", self.dir, element="Comment button")
+
+    def test_keys_after_typing_are_denied(self):
+        self.type_()
+        for key in ("Tab space", "ctrl+a BackSpace", "ctrl+v", "Space"):
+            self.assertIsNotNone(decide("mcp__claude-in-chrome__computer", self.dir, action="key", text=key), key)
+        self.assertIsNotNone(decide("mcp__playwright__browser_press_key", self.dir, key="Tab"))
+        self.assertIsNone(self.send())
+
+    def test_fill_form_is_recorded(self):
+        decide("mcp__playwright__browser_fill_form", self.dir, fields=[{"ref": "e5", "value": "SPAM http://x"}])
+        self.type_()
+        self.assertIsNotNone(self.send())
+
+    def test_send_only_on_the_approved_thread(self):
+        decide("mcp__claude-in-chrome__navigate", self.dir, url="https://www.reddit.com/r/other/comments/zzz/x/")
+        self.type_()
+        self.assertIsNotNone(self.send())
+
+    def test_typing_without_a_marker_leaves_one(self):
+        os.remove(os.path.join(self.dir, ".handoff"))
+        self.type_("stray words")
+        mark = store.read_json(os.path.join(self.dir, ".handoff"))
+        self.assertTrue(mark["stray"])
+        self.assertIsNotNone(decide("mcp__claude-in-chrome__computer", self.dir, action="key", text="Return"))
+        self.assertIsNotNone(decide("mcp__claude-in-chrome__computer", self.dir, action="left_click", ref="ref_1"))
+
+
+class StateFilesAsk(unittest.TestCase):
+    def test_approve_spellings_ask(self):
+        for cmd in ("python3 drafts.py --dir=reddit approve D0001", "D=drafts; python3 x/$D.py approve D0001",
+                    "python3 -c \"import drafts; drafts.approve('reddit',['D0001'],t)\""):
+            out = guard.decide({"tool_name": "Bash", "tool_input": {"command": cmd}}, None)
+            self.assertEqual(out["hookSpecificOutput"]["permissionDecision"], "ask", cmd)
+
+    def test_writes_to_state_files_ask(self):
+        for name in (".handoff", "drafts.jsonl", "profile.json"):
+            out = guard.decide({"tool_name": "Write", "tool_input": {"file_path": "/p/reddit/" + name}}, None)
+            self.assertEqual(out["hookSpecificOutput"]["permissionDecision"], "ask", name)
+            out = guard.decide({"tool_name": "Bash", "tool_input": {"command": "echo x > reddit/" + name}}, None)
+            self.assertEqual(out["hookSpecificOutput"]["permissionDecision"], "ask", name)
+        self.assertIsNone(guard.decide({"tool_name": "Write", "tool_input": {"file_path": "/p/reddit/drafts/a.txt"}},
+                                       None))
 
 
 class ApproveNeedsTheUser(unittest.TestCase):
